@@ -1,0 +1,8 @@
+fastapi==0.141.1
+uvicorn==0.54.0
+transformers==4.57.6
+sentencepiece==0.2.2
+pydantic-settings==2.14.1
+python-multipart==0.0.32
+pymupdf==2.0
+python-docx==1.2.0
