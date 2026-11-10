@@ -3,6 +3,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.schemas.summary import SummaryResponse
 from app.services.document_extractor import DocumentExtractionError, extract_text
+from app.services.input_validation import validate_meaningful_text
 
 router = APIRouter()
 
@@ -54,6 +55,14 @@ async def summarize(
                 f"{request.app.state.settings.max_document_characters:,} characters."
             ),
         )
+
+    try:
+        validate_meaningful_text(source_text)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
 
     service = request.app.state.summarization_service
     try:

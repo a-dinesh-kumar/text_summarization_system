@@ -37,7 +37,7 @@ def test_root_endpoint(client):
 def test_summarize_text_success(client):
     response = client.post(
         "/api/v1/summarize",
-        data={"text": "This is a short test document."},
+        data={"text": "This document contains enough meaningful text to verify that the summarization API successfully processes a valid text input."},
     )
 
     assert response.status_code == 200
@@ -45,21 +45,21 @@ def test_summarize_text_success(client):
     assert body["summary"] == "brief summary"
     assert body["source_type"] == "text"
     assert body["source_name"] is None
-    assert body["source_characters"] == len("This is a short test document.")
+    assert body["source_characters"] == len("This document contains enough meaningful text to verify that the summarization API successfully processes a valid text input.")
     assert body["model_key"] == "fake"
 
 
 def test_summarize_txt_upload_success(client):
     response = client.post(
         "/api/v1/summarize",
-        files={"file": ("notes.txt", BytesIO(b"Text from an uploaded file."), "text/plain")},
+        files={"file": ("notes.txt", BytesIO(b"This uploaded text document contains enough meaningful content to verify successful document extraction and summarization through the API."), "text/plain")},
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["source_type"] == "document"
     assert body["source_name"] == "notes.txt"
-    assert body["source_characters"] == len("Text from an uploaded file.")
+    assert body["source_characters"] == len("This uploaded text document contains enough meaningful content to verify successful document extraction and summarization through the API.")
 
 
 def test_rejects_request_without_input(client):
@@ -122,7 +122,7 @@ def test_rejects_text_over_character_limit(client):
 def test_summarize_pdf_upload_success(client):
     pdf = pymupdf.open()
     page = pdf.new_page()
-    page.insert_text((72, 72), "PDF content for API testing.")
+    page.insert_text((72, 72), "This PDF document contains enough meaningful content to verify successful text extraction and summarization through the API.")
     content = pdf.tobytes()
     pdf.close()
 
@@ -138,7 +138,7 @@ def test_summarize_pdf_upload_success(client):
 
 def test_summarize_docx_upload_success(client):
     document = Document()
-    document.add_paragraph("DOCX content for API testing.")
+    document.add_paragraph("This DOCX document contains enough meaningful content to verify successful text extraction and summarization through the API.")
     buffer = BytesIO()
     document.save(buffer)
 
