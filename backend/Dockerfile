@@ -1,9 +1,10 @@
+
 FROM python:3.13.15-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    HF_HOME=/app/.cache/huggingface \ 
+    HF_HOME=/app/.cache/huggingface \
     HF_HUB_DISABLE_TELEMETRY=1
 
 WORKDIR /app
@@ -24,7 +25,7 @@ RUN useradd --create-home appuser \
 EXPOSE 8000
 
 
-# Local development image: includes test tools and Uvicorn hot reload.
+# Development image
 FROM base AS development
 
 COPY requirements-test.txt .
@@ -40,11 +41,12 @@ USER appuser
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 
-# Production image: no pytest dependencies, no source bind mount, no hot reload.
+# Production image
 FROM base AS production
 
 COPY app ./app
+
 RUN chown -R appuser:appuser /app
 USER appuser
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
