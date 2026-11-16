@@ -5,74 +5,133 @@ from app.services.chunking import create_sentence_chunks
 
 
 class SummarizationService:
-    def __init__(self, summarizer: BaseSummarizer, settings: Settings) -> None:
+    def __init__(
+        self,
+        summarizer: BaseSummarizer,
+        settings: Settings,
+    ) -> None:
         self.summarizer = summarizer
         self.settings = settings
 
     def summarize(self, text: str) -> dict:
         started = time.perf_counter()
+
+        # One remote token-count request for the original document.
         source_tokens = self.summarizer.count_tokens(text)
 
-        current_text = text
-        total_chunks = 0
-        reduction_levels = 0
+        chunks = create_sentence_chunks(
+            text,
+            self.summarizer,
+        )
 
-        chunks = create_sentence_chunks(current_text, self.summarizer)
         if not chunks:
-            raise ValueError("No readable text was found to summarize.")
+            raise ValueError(
+                "No readable text was found to summarize."
+            )
 
-        total_chunks += len(chunks)
+        total_chunks = len(chunks)
+
         summaries = [
-            self.summarizer.generate(chunk, self.settings.max_new_tokens)
+            self.summarizer.generate(
+                chunk,
+                self.settings.max_new_tokens,
+            )
             for chunk in chunks
         ]
-        summaries = [item for item in summaries if item]
+
+        summaries = [
+            item.strip()
+            for item in summaries
+            if item and item.strip()
+        ]
 
         if not summaries:
-            raise RuntimeError("The model did not generate a summary.")
+            raise RuntimeError(
+                "The model did not generate a summary."
+            )
 
-        # Reduce intermediate summaries until the combined text fits one chunk.
-        while self.summarizer.count_tokens(" ".join(summaries)) > self.summarizer.chunk_size:
+        reduction_levels = 0
+
+        # Reduce summaries until they fit within one chunk.
+        while len(" ".join(summaries)) > (
+            self.summarizer.chunk_size_chars
+        ):
             reduction_levels += 1
-            if reduction_levels > self.settings.max_reduction_levels:
+
+            if (
+                reduction_levels
+                > self.settings.max_reduction_levels
+            ):
                 raise RuntimeError(
-                    "The document required too many reduction passes. "
-                    "Try a shorter document or a smaller chunk size."
+                    "The document required too many reduction "
+                    "passes. Try a shorter document or a larger "
+                    "chunk size."
                 )
 
             combined = " ".join(summaries)
-            reduction_chunks = create_sentence_chunks(combined, self.summarizer)
+
+            reduction_chunks = create_sentence_chunks(
+                combined,
+                self.summarizer,
+                overlap_sentences=0,
+            )
+
             if len(reduction_chunks) <= 1:
-                # Safety fallback: the chunker should normally make progress.
-                break
+                raise RuntimeError(
+                    "Unable to split intermediate summaries "
+                    "within the configured chunk size."
+                )
 
             total_chunks += len(reduction_chunks)
+
             new_summaries = [
-                self.summarizer.generate(chunk, self.settings.max_new_tokens)
+                self.summarizer.generate(
+                    chunk,
+                    self.settings.max_new_tokens,
+                )
                 for chunk in reduction_chunks
             ]
-            new_summaries = [item for item in new_summaries if item]
 
-            if not new_summaries or len(" ".join(new_summaries)) >= len(combined):
-                # Avoid an infinite loop if a model repeats or expands its input.
-                summaries = new_summaries or summaries
-                break
+            new_summaries = [
+                item.strip()
+                for item in new_summaries
+                if item and item.strip()
+            ]
+
+            if not new_summaries:
+                raise RuntimeError(
+                    "The model returned empty reduction summaries."
+                )
+
+            reduced_text = " ".join(new_summaries)
+
+            if len(reduced_text) >= len(combined):
+                raise RuntimeError(
+                    "The model did not sufficiently reduce "
+                    "the intermediate summaries."
+                )
+
             summaries = new_summaries
 
         final_input = " ".join(summaries)
-        if self.summarizer.count_tokens(final_input) > self.summarizer.chunk_size:
-            raise RuntimeError(
-                "The selected model did not sufficiently reduce the intermediate summaries. "
-                "Try a shorter document or adjust the generation/chunk settings."
-            )
 
         final_summary = self.summarizer.generate(
-            final_input, self.settings.max_new_tokens
+            final_input,
+            self.settings.max_new_tokens,
         )
 
-        elapsed = round(time.perf_counter() - started, 3)
+        if not final_summary or not final_summary.strip():
+            raise RuntimeError(
+                "The model returned an empty final summary."
+            )
+
+        elapsed = round(
+            time.perf_counter() - started,
+            3,
+        )
+
         return {
-            "summary": final_summary,
+            "summary": final_summary.strip(),
             "model": self.summarizer.display_name,
             "model_key": self.summarizer.model_key,
             "source_tokens": source_tokens,

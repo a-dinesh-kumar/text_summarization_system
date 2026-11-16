@@ -1,11 +1,14 @@
 # Text Summarization System
 
-An AI-powered text summarization application that converts lengthy text and documents into concise, meaningful summaries using transformer-based language models.
+An AI-powered application that transforms lengthy text and documents into concise, meaningful summaries using the **Gemini Developer API**.
 
-The application supports direct text input and document uploads, with a React frontend, FastAPI backend, and Docker-based development environment.
+The application supports direct text input and document uploads through a React frontend and FastAPI backend. It uses a chunk-based summarization pipeline to process longer content and is containerized with Docker for consistent backend development and deployment.
 
 ## Live Demo
 
+**Application:** https://text-summarization-system-ieit.onrender.com/
+
+**Backend API:** https://text-summarization-api-ordi.onrender.com
 
 ---
 
@@ -15,7 +18,7 @@ The application supports direct text input and document uploads, with a React fr
 2. [Key Features](#2-key-features)
 3. [Application Architecture](#3-application-architecture)
 4. [Technology Stack](#4-technology-stack)
-5. [Supported Summarization Models](#5-supported-summarization-models)
+5. [Summarization Approach](#5-summarization-approach)
 6. [Project Structure](#6-project-structure)
 7. [Application Workflow](#7-application-workflow)
 8. [Getting Started](#8-getting-started)
@@ -25,7 +28,7 @@ The application supports direct text input and document uploads, with a React fr
 12. [Input Validation](#12-input-validation)
 13. [Document Processing](#13-document-processing)
 14. [Testing](#14-testing)
-15. [Model Configuration and Switching](#15-model-configuration-and-switching)
+15. [Deployment Architecture](#15-deployment-architecture)
 16. [Troubleshooting](#16-troubleshooting)
 17. [Future Enhancements](#17-future-enhancements)
 18. [Author](#18-author)
@@ -36,47 +39,58 @@ The application supports direct text input and document uploads, with a React fr
 
 Reading lengthy documents, research materials, technical articles, and other content can be time-consuming.
 
-The Text Summarization System addresses this problem by using transformer-based NLP models to generate concise summaries while retaining the important information from the original content.
+The Text Summarization System addresses this problem by using a generative AI model to produce concise summaries while retaining important information from the original content.
 
 Users can:
 
 - Enter text directly into the application.
 - Upload PDF, DOCX, or TXT documents.
-- Generate summaries using configured transformer models.
-- View processing information, including the selected model and processing time.
+- Generate summaries using the Gemini Developer API.
+- Process longer content through a chunk-based summarization pipeline.
+- View processing information, including the model used and processing time.
 - Copy or download the generated summary.
 
-The application is designed with a modular architecture so that different summarization models can be evaluated and configured without changing the overall application workflow.
+The application separates the user interface, API layer, document processing, and summarization logic to keep the implementation modular and maintainable.
 
 ## 2. Key Features
 
 ### Text Summarization
+
 - Summarize content entered directly into the application.
 - Process lengthy text using chunk-based summarization.
-- Generate concise summaries using transformer-based models.
+- Generate summaries through the Gemini Developer API.
+- Return processing metadata along with the generated summary.
 
 ### Document Upload
+
 - Upload PDF documents.
 - Upload Microsoft Word documents (DOCX).
 - Upload plain text files (TXT).
-- Extract document text before summarization.
+- Extract document content before summarization.
+- Process extracted content through the same summarization pipeline as direct text input.
 
-### Multiple Model Support
-- BART-large-CNN.
-- FLAN-T5-small.
-- Configurable model selection.
+### AI-Powered Summarization
+
+- Integrates with Google's Gemini Developer API.
+- Uses the Google GenAI Python SDK.
+- Keeps model configuration outside the application code.
+- Uses chunking and reduction stages to handle longer documents.
+- Avoids downloading and hosting large transformer model weights in the backend container.
 
 ### Input Validation
+
 - Reject empty and whitespace-only inputs.
 - Reject punctuation-only inputs.
 - Require at least 50 meaningful characters.
-- Validate both directly entered text and extracted document content.
-- Enforce document size and text length limits.
+- Validate both direct text and extracted document content.
+- Enforce upload size and maximum input text limits.
+- Validate requests on the backend even when frontend validation is bypassed.
 
 ### Processing Information
-The application provides useful processing metadata, including:
 
-- Selected summarization model.
+The application returns processing metadata, including:
+
+- Selected model.
 - Source type and document name.
 - Source character count.
 - Source token count.
@@ -86,147 +100,183 @@ The application provides useful processing metadata, including:
 - Processing time.
 
 ### User Interface
-- React-based responsive interface.
+
+- Responsive React-based interface.
 - Text input and document upload modes.
-- Input validation and error handling.
-- Loading indicators.
+- Loading indicators and error handling.
 - Copy summary functionality.
 - Download summary functionality.
 - GitHub and LinkedIn profile links.
 
 ### Development and Testing
+
 - Docker-based backend environment.
-- Automated backend test suite.
-- Mock-based testing for API and application logic.
-- Separate application and test dependencies.
+- Docker Compose for local development.
+- Automated backend tests using Pytest and HTTPX.
+- Mock-based tests for summarization and API logic.
+- Environment-based configuration for local and production deployments.
 
 ## 3. Application Architecture
 
-The application follows a frontend-backend architecture.
+The application follows a decoupled frontend-backend architecture. The frontend is responsible for user interactions, while the backend handles validation, document extraction, text processing, and communication with the Gemini API.
+
+### High-Level Architecture
 
 ```text
-                 USER
-                   |
-                   v
-          REACT FRONTEND
-           (React + Vite)
-                   |
-          Text Input / Upload
-                   |
-                   v
-             FASTAPI
-              BACKEND
-                   |
-          Input Validation
-                   |
-                   v
-          TEXT EXTRACTION
-           PDF / DOCX / TXT
-                   |
-                   v
-          TEXT PREPROCESSING
-                   |
-                   v
-          CHUNKING PIPELINE
-                   |
-                   v
-        SUMMARIZATION SERVICE
-                   |
-             +-----+-----+
-             |           |
-             v           v
-       BART-LARGE-CNN  FLAN-T5-SMALL
-             |           |
-             +-----+-----+
-                   |
-                   v
-          SUMMARY GENERATION
-                   |
-                   v
-           API RESPONSE
-                   |
-                   v
-            REACT FRONTEND
-                   |
-                   v
-          DISPLAY SUMMARY
+                         USER
+                           |
+                           v
+                  REACT FRONTEND
+                    React + Vite
+                           |
+                 Text Input / File Upload
+                           |
+                           v
+                    FASTAPI BACKEND
+                           |
+                    INPUT VALIDATION
+                           |
+              +------------+------------+
+              |                         |
+              v                         v
+        DIRECT TEXT INPUT        DOCUMENT EXTRACTION
+                                  PDF / DOCX / TXT
+              |                         |
+              +------------+------------+
+                           |
+                           v
+                    TEXT PROCESSING
+                           |
+                           v
+                    CHUNKING PIPELINE
+                           |
+                           v
+                  SUMMARIZATION SERVICE
+                           |
+                           v
+                 GEMINI DEVELOPER API
+                   Google GenAI SDK
+                           |
+                           v
+                 SUMMARY GENERATION
+                  Chunk / Reduction
+                           |
+                           v
+                     API RESPONSE
+                           |
+                           v
+                    REACT FRONTEND
+                           |
+                           v
+                  DISPLAY GENERATED SUMMARY
 ```
+
+### Deployment Architecture
+
+```text
+                    USER'S BROWSER
+                           |
+                           v
+                  RENDER STATIC SITE
+                    React + Vite
+                           |
+                     HTTPS API Call
+                           |
+                           v
+                  RENDER WEB SERVICE
+                   Docker + FastAPI
+                           |
+                     Google GenAI SDK
+                           |
+                           v
+                 GEMINI DEVELOPER API
+```
+
+The frontend and backend are deployed as separate Render services:
+
+| Service | Responsibility |
+|---|---|
+| Render Static Site | Hosts the built React frontend |
+| Render Web Service | Runs the Dockerized FastAPI backend |
+| Gemini Developer API | Performs AI-powered summary generation |
+
+The frontend communicates with the backend through the configured API base URL. The backend communicates with Gemini using a server-side API key.
 
 ### Architectural Components
 
 | Component | Responsibility |
 |---|---|
-| React + Vite | User interface and user interactions |
+| React + Vite | User interface and interactions |
 | FastAPI | REST API and request handling |
-| Input Validation | Validates input before model inference |
-| Document Extraction | Extracts text from uploaded documents |
-| Text Processing | Prepares text for summarization |
-| Chunking Pipeline | Splits lengthy content into manageable sections |
-| Summarization Service | Coordinates model inference |
-| BART / FLAN-T5 | Generates summaries |
-| Docker | Provides a consistent backend development environment |
-| Pytest | Automated backend testing |
+| Input Validation | Validates text and uploaded content |
+| Document Extraction | Extracts content from PDF, DOCX, and TXT |
+| Text Processing | Prepares source content for summarization |
+| Chunking Pipeline | Divides long content into manageable sections |
+| Summarization Service | Coordinates summary generation |
+| Google GenAI SDK | Connects the backend to Gemini |
+| Gemini Developer API | Generates summaries |
+| Docker | Provides a consistent backend runtime |
+| Docker Compose | Simplifies local backend execution |
+| Pytest + HTTPX | Automated backend testing |
 
 ## 4. Technology Stack
 
 | Category | Technologies |
 |---|---|
-| Programming Language | Python |
-| Frontend | React, JavaScript, Vite |
+| Programming Language | Python, JavaScript |
+| Frontend | React, Vite |
 | Backend | FastAPI |
-| Machine Learning | Hugging Face Transformers |
-| NLP Models | BART-large-CNN, FLAN-T5-small |
-| Deep Learning | PyTorch |
+| Generative AI | Google Gemini Developer API |
+| AI Integration | Google GenAI Python SDK |
 | Document Processing | PyMuPDF, python-docx |
-| API Testing | Postman, FastAPI Swagger UI |
+| API Testing | FastAPI Swagger UI, Postman |
 | Automated Testing | Pytest, HTTPX |
 | Containerization | Docker, Docker Compose |
+| Deployment | Render |
 | Version Control | Git, GitHub |
 
-## 5. Supported Summarization Models
+## 5. Summarization Approach
 
-The application supports two transformer-based summarization models.
+### Gemini Developer API
 
-### BART-large-CNN
+The application uses the Gemini Developer API for AI-powered text summarization.
 
-BART is a sequence-to-sequence transformer model based on a denoising autoencoder architecture.
+The backend integrates with Gemini through Google's GenAI Python SDK.
 
-It is particularly useful for abstractive summarization tasks.
+**Why use an external AI API?**
 
-**Characteristics:**
-- Designed for text generation and summarization.
-- Produces more detailed and contextually relevant summaries in the project's evaluation.
-- Requires comparatively more computational resources.
-- Takes longer to process lengthy documents.
+During development, local transformer models such as BART-large-CNN and FLAN-T5-small were evaluated for summarization quality and performance.
 
-### FLAN-T5-small
+Although BART produced stronger results in the initial evaluation, running large transformer models required significant memory and processing resources. This became a limitation when targeting Render's free deployment resources.
 
-FLAN-T5 is an instruction-tuned version of the T5 transformer architecture.
+The application was therefore migrated to the Gemini Developer API.
 
-It uses a text-to-text approach, where both inputs and outputs are represented as text.
+This approach:
 
-**Characteristics:**
-- Smaller and comparatively lightweight.
-- Faster inference in the project's evaluation.
-- Supports instruction-based text generation.
-- Produced lower summarization quality than BART in the project's initial evaluation.
+- Avoids loading large model weights into the backend container.
+- Reduces backend memory requirements.
+- Simplifies model integration and configuration.
+- Makes deployment on resource-constrained hosting more practical.
+- Allows the backend to focus on document processing and application logic.
 
-### Model Comparison
+The Gemini model is configured through backend environment variables rather than being hardcoded into the application.
+
+### Earlier Transformer Model Evaluation
+
+BART-large-CNN and FLAN-T5-small were evaluated during the earlier development phase.
+
+The following measurements were recorded using the same full-document input:
 
 | Evaluation Metric | BART-large-CNN | FLAN-T5-small |
 |---|---:|---:|
 | ROUGE-1 | 0.4575 | 0.1998 |
 | ROUGE-2 | 0.1762 | 0.0409 |
 | ROUGE-L | 0.3419 | 0.1638 |
-| Inference Time (Full Document) | 427.79 sec | 83.39 sec |
+| Inference Time | 427.79 sec | 83.39 sec |
 | Initial Chunks | 11 | 23 |
 | Reduction Levels | 1 | 2 |
 
-**Evaluation note:** These measurements come from the project's earlier model evaluation using the same full-document input. They are experimental results, not guaranteed performance benchmarks. Actual processing time depends on hardware, document size, and runtime conditions.
-
-BART demonstrated stronger summarization quality in this evaluation, while FLAN-T5-small offered faster processing.
-
-The application supports configurable model selection so that the models can be tested and compared.
+**Evaluation note:** These are historical experimental results from the local transformer-model evaluation. They are not benchmarks for the current Gemini-powered implementation. Actual Gemini response time and output quality depend on the configured model, input size, API conditions, and generation settings.
 
 ## 6. Project Structure
 
@@ -244,10 +294,12 @@ text_summarization_system/
 │   │   │
 │   │   ├── services/
 │   │   │   ├── input_validation.py
+│   │   │   ├── document_extraction.py
+│   │   │   ├── gemini_summarizer.py
 │   │   │   └── ...
 │   │   │
-│   │   ├── models/
 │   │   ├── schemas/
+│   │   ├── models/
 │   │   └── main.py
 │   │
 │   ├── tests/
@@ -257,7 +309,6 @@ text_summarization_system/
 │   │
 │   ├── Dockerfile
 │   ├── requirements.txt
-│   ├── requirements-test.txt
 │   ├── pytest.ini
 │   ├── .env
 │   └── .env.example
@@ -265,8 +316,6 @@ text_summarization_system/
 ├── frontend/
 │   ├── public/
 │   │   └── icons/
-│   │       ├── github.png
-│   │       └── linkedin.png
 │   │
 │   ├── src/
 │   │   ├── App.jsx
@@ -274,6 +323,7 @@ text_summarization_system/
 │   │   ├── main.jsx
 │   │   └── styles.css
 │   │
+│   ├── .env.example
 │   ├── package.json
 │   └── vite.config.js
 │
@@ -283,7 +333,7 @@ text_summarization_system/
 └── README.md
 ```
 
-The structure above highlights the main application components. Additional files and service modules may exist as the implementation evolves.
+The structure above highlights the main application components. Additional modules and configuration files may exist as the implementation evolves.
 
 ## 7. Application Workflow
 
@@ -291,39 +341,41 @@ The structure above highlights the main application components. Additional files
 
 1. User selects text input mode.
 2. User enters the content.
-3. Frontend checks the meaningful character count.
+3. Frontend performs initial input validation.
 4. User submits the request.
-5. FastAPI performs server-side validation.
-6. The summarization service processes the content.
-7. The selected transformer model generates the summary.
-8. FastAPI returns the summary and processing metadata.
-9. Frontend displays the result.
+5. FastAPI validates the incoming content.
+6. The summarization service prepares the content.
+7. Long content is divided into manageable chunks.
+8. The backend sends summarization requests to Gemini.
+9. Intermediate summaries are combined and reduced when necessary.
+10. FastAPI returns the final summary and processing metadata.
+11. Frontend displays the result.
 
 ### Document Upload Workflow
 
 1. User selects document upload mode.
 2. User uploads a PDF, DOCX, or TXT file.
 3. Backend validates the uploaded file.
-4. The appropriate document extraction component extracts text.
-5. Extracted content undergoes meaningful character validation.
+4. The corresponding extraction component extracts the document text.
+5. Extracted content undergoes meaningful-character and length validation.
 6. Valid content enters the summarization pipeline.
-7. The model generates the summary.
+7. The backend processes the content through Gemini.
 8. The application displays the generated summary and metadata.
 
 ### Long Document Processing
 
-Transformer models have input token limits. Therefore, lengthy documents cannot always be passed to a model in a single request.
+Long documents may exceed the input limits of a single model request. The application therefore uses a chunk-based processing approach.
 
-The application uses a chunk-based processing approach:
+The general workflow is:
 
-1. Tokenize the source content.
+1. Prepare and tokenize the source content.
 2. Divide the content into manageable chunks.
-3. Generate summaries for individual chunks.
+3. Generate intermediate summaries for the chunks.
 4. Combine intermediate summaries when necessary.
-5. Apply additional reduction levels when required.
-6. Produce the final summary.
+5. Apply reduction stages when the combined content is still too large.
+6. Generate the final summary.
 
-This approach enables the application to handle content that exceeds the model's individual input token limit.
+This approach allows the application to process longer content without sending the entire document in one model request.
 
 ## 8. Getting Started
 
@@ -334,46 +386,42 @@ Install the following tools:
 - Git
 - Docker Desktop
 - Docker Compose (included with current Docker Desktop installations)
-- Node.js and npm (for frontend development outside Docker)
+- Node.js and npm
 - VS Code or another code editor
+- A Gemini Developer API key from Google AI Studio
 
-For local development, Docker Desktop should be running before executing Docker commands.
+Docker Desktop should be running before executing Docker commands.
 
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/a-dinesh-kumar/text_summarization_system
+git clone https://github.com/a-dinesh-kumar/text_summarization_system.git
 cd text_summarization_system
 ```
 
 ### Backend Setup
 
-The backend runs inside Docker.
+Create the local backend environment file:
 
-Create your local environment configuration:
-
-```bash
-copy backend\.env.example backend\.env
+```powershell
+Copy-Item backend/.env.example backend/.env
 ```
 
-Update the required configuration values in `backend/.env`.
+Open `backend/.env` and configure the Gemini API key and model settings.
+
+**Important:** Obtain your API key through Google AI Studio. Never commit the actual key to GitHub.
 
 ### Frontend Setup
 
 Open another terminal:
 
-```bash
+```powershell
 cd frontend
 npm install
-```
-
-Start the frontend development server:
-
-```bash
 npm run dev
 ```
 
-The frontend should be available at:
+The frontend development server should be available at:
 
 ```text
 http://localhost:5173
@@ -383,7 +431,7 @@ http://localhost:5173
 
 From the project root:
 
-```bash
+```powershell
 docker compose up --build
 ```
 
@@ -407,6 +455,10 @@ http://localhost:8000/docs
 
 ## 9. Environment Configuration
 
+The application uses environment variables to separate application configuration from source code.
+
+### Backend Configuration
+
 Backend configuration is maintained in:
 
 ```text
@@ -415,84 +467,88 @@ backend/.env
 
 Use `backend/.env.example` as the template.
 
-Example configuration:
+The backend configuration includes:
 
-```env
-SUMMARIZATION_MODEL=bart
-HF_HOME=/app/.cache/huggingface
-```
-
-The application supports:
-
-| Variable | Purpose |
+| Configuration | Purpose |
 |---|---|
-| `SUMMARIZATION_MODEL` | Selects the summarization model |
-| `HF_HOME` | Configures the Hugging Face model cache |
-| `CORS_ORIGINS` | Configures permitted frontend origins |
+| Gemini API key | Authenticates backend requests to the Gemini Developer API |
+| Gemini model | Selects the Gemini model used for summarization |
+| CORS origins | Defines which frontend origins can access the backend |
 
-Frontend configuration is maintained using Vite environment variables.
+Keep the API key on the backend only. Do not expose it through frontend variables or browser code.
+
+### Frontend Configuration
+
+Frontend configuration is maintained through Vite environment variables.
 
 Example:
 
 ```env
 VITE_API_BASE_URL=http://localhost:8000
 VITE_MAX_UPLOAD_SIZE_MB=15
-VITE_GITHUB_URL=https://github.com/your-username
+VITE_GITHUB_URL=https://github.com/your-username/
 VITE_LINKEDIN_URL=https://www.linkedin.com/in/your-profile/
 ```
 
-Update the profile URLs with your actual public profile links.
+Replace the profile URLs with your actual public profile links.
 
 **Important:**
-- Never commit `.env` files containing local or sensitive configuration.
-- Commit `.env.example` files so other developers can understand the required configuration.
-- Restart the relevant development process after changing environment variables.
+
+- Never commit `.env` files containing API keys or sensitive configuration.
+- Commit `.env.example` files with placeholder values.
+- Vite environment variables prefixed with `VITE_` are embedded into the frontend build and are visible to browser users.
+- Never place the Gemini API key in a `VITE_` variable.
+- After changing frontend environment variables, rebuild or redeploy the frontend.
+- After changing backend environment variables, restart or redeploy the backend service.
 
 ## 10. Running with Docker
 
-Docker provides a consistent backend runtime environment.
+Docker provides a consistent backend runtime environment across local development and deployment.
 
 ### Start Containers
 
-```bash
+```powershell
 docker compose up --build
 ```
 
 ### Run in Detached Mode
 
-```bash
+```powershell
 docker compose up -d --build
 ```
 
 ### View Running Containers
 
-```bash
+```powershell
 docker compose ps
 ```
 
 ### View Backend Logs
 
-```bash
+```powershell
 docker compose logs -f backend
+```
+
+### Rebuild the Backend
+
+```powershell
+docker compose build --no-cache backend
+docker compose up -d --force-recreate backend
 ```
 
 ### Stop Containers
 
-```bash
+```powershell
 docker compose down
 ```
 
 ### Run Backend Tests
 
-```bash
+```powershell
 docker compose exec backend pytest
 ```
 
-### Model Cache
-
-The Docker Compose configuration uses a named volume for the Hugging Face model cache.
-
-This prevents model files from needing to be downloaded again every time the backend container is recreated.
+Unlike the earlier local transformer implementation, the current Gemini-based backend does not need to download and cache large Hugging Face model weights at startup. It communicates with the configured Gemini API instead.
 
 ## 11. API Documentation
 
@@ -506,7 +562,7 @@ The backend exposes REST APIs through FastAPI.
 GET /health
 ```
 
-Used to verify backend availability.
+Used to verify backend availability and report application readiness.
 
 ### Generate Summary
 
@@ -545,17 +601,17 @@ curl -X POST "http://localhost:8000/api/v1/summarize" \
   "source_type": "text",
   "source_name": null,
   "source_characters": 1200,
-  "model": "BART-large-CNN",
-  "model_key": "bart",
+  "model": "Configured Gemini model",
+  "model_key": "gemini",
   "source_tokens": 260,
   "initial_chunk_count": 1,
   "total_generation_chunks": 1,
   "reduction_levels": 0,
-  "processing_time_seconds": 22.424
+  "processing_time_seconds": 12.5
 }
 ```
 
-The values above illustrate the response structure; actual values depend on the input and model execution.
+The values above illustrate the response structure. Actual values depend on the input and model execution.
 
 ### Interactive API Testing
 
@@ -565,7 +621,7 @@ FastAPI provides Swagger UI for exploring and testing the endpoints:
 http://localhost:8000/docs
 ```
 
-You can use Swagger UI to:
+Swagger UI can be used to:
 
 - Inspect API request and response schemas.
 - Submit text input.
@@ -589,8 +645,6 @@ Meaningful characters include:
 
 Whitespace and punctuation do not contribute to the meaningful character count.
 
-Examples:
-
 | Input | Expected Result |
 |---|---|
 | Empty input | Rejected |
@@ -600,19 +654,19 @@ Examples:
 | Exactly 50 meaningful characters | Accepted |
 | More than 50 meaningful characters | Accepted |
 
-### Why Both Frontend and Backend Validation?
+### Why Validate at Both Levels?
 
 Frontend validation provides immediate feedback and improves user experience.
 
-Backend validation ensures that invalid requests are rejected even when someone bypasses the frontend and calls the API directly.
-
-This creates a consistent validation mechanism across both input methods.
+Backend validation ensures invalid requests are rejected even when someone bypasses the frontend and calls the API directly.
 
 ### Other Limits
 
 - Maximum upload size: 15 MB.
 - Maximum extracted/input text length: 500,000 characters.
 - Supported document formats: PDF, DOCX, TXT.
+
+The backend remains the authoritative validation layer.
 
 ## 13. Document Processing
 
@@ -638,66 +692,88 @@ The test suite covers application and API behaviour, including:
 - Empty and whitespace-only input validation.
 - Punctuation-only input validation.
 - Minimum character requirements.
-- Valid text input.
-- Text upload.
+- Text summarization request handling.
+- Document upload handling.
 - PDF extraction and upload.
 - DOCX extraction and upload.
 - API validation and error handling.
-- Summarization request handling.
+- Summarization pipeline and chunk-processing logic.
 
 ### Execute the Test Suite
 
 Make sure the backend container is running:
 
-```bash
+```powershell
 docker compose up -d
 ```
 
 Execute:
 
-```bash
+```powershell
 docker compose exec backend pytest
 ```
 
 ### Latest Test Status
 
-**37 tests passed**, as reported during the project's development validation.
+**40 tests passed, 0 failed** during the latest local backend validation.
 
-The test suite uses mocked model behaviour where appropriate, so automated test success validates application logic and API workflows rather than proving the quality of actual model-generated summaries.
+The automated suite uses mocked summarization behaviour where appropriate. Therefore, passing tests validates application logic, API workflows, and integration boundaries; it does not independently measure the quality of summaries generated by Gemini.
 
-Actual model inference should also be verified separately using meaningful input.
+Real API functionality was also verified separately through the backend Swagger interface using both direct text input and document uploads.
 
-## 15. Model Configuration and Switching
+## 15. Deployment Architecture
 
-The summarization model can be configured through the backend environment file.
+The application is designed to use two separate Render services.
 
-Open:
+### Frontend — Render Static Site
 
-```text
-backend/.env
-```
+The React application is built using Vite and deployed as a Render Static Site.
 
-For BART:
+Typical configuration:
+
+| Setting | Value |
+|---|---|
+| Root Directory | `frontend` |
+| Build Command | `npm install && npm run build` |
+| Publish Directory | `dist` |
+
+Configure the frontend environment variables in the Static Site service:
 
 ```env
-SUMMARIZATION_MODEL=bart
+VITE_API_BASE_URL=https://your-backend-service.onrender.com
+VITE_MAX_UPLOAD_SIZE_MB=15
+VITE_GITHUB_URL=https://github.com/your-username/
+VITE_LINKEDIN_URL=https://www.linkedin.com/in/your-profile/
 ```
 
-For FLAN-T5:
+These values are read during the Vite build. Changes require a new frontend build and deployment.
 
-```env
-SUMMARIZATION_MODEL=flan_t5
-```
+### Backend — Render Web Service
 
-After changing the model, recreate the backend container so that the updated configuration is loaded:
+The FastAPI backend is deployed separately using its Dockerfile.
 
-```bash
-docker compose up -d --force-recreate backend
-```
+Configure the backend environment variables in the Web Service:
 
-The model is loaded during backend startup and reused for subsequent requests.
+- Gemini API key.
+- Gemini model configuration.
+- CORS origins containing the deployed frontend URL.
 
-This avoids loading the model separately for every summarization request.
+The Gemini API key must remain in the backend environment and must never be exposed to the frontend.
+
+### Cross-Origin Resource Sharing (CORS)
+
+Since the frontend and backend use different service URLs, the backend must allow requests from the deployed frontend origin.
+
+Configure the backend CORS setting with the actual Render Static Site URL.
+
+### Deployment Considerations
+
+- Keep frontend and backend environment variables in their respective Render services.
+- Do not configure the Gemini API key on the frontend.
+- Rebuild the frontend after changing `VITE_` variables.
+- Verify the backend health endpoint after deployment.
+- Test text summarization and document upload against the deployed services.
+- Check backend logs if requests fail or the service restarts.
 
 ## 16. Troubleshooting
 
@@ -706,6 +782,7 @@ This avoids loading the model separately for every summarization request.
 **Problem:** Docker commands fail because the Docker daemon is unavailable.
 
 **Solution:**
+
 1. Start Docker Desktop.
 2. Verify that the Docker engine is running.
 3. Retry the Docker Compose command.
@@ -716,35 +793,34 @@ This avoids loading the model separately for every summarization request.
 
 **Solution:**
 
-Check the running containers:
-
-```bash
+```powershell
 docker compose ps
-```
-
-Check backend logs:
-
-```bash
 docker compose logs -f backend
 ```
 
-Verify:
+Verify the health endpoint:
 
 ```text
 http://localhost:8000/health
 ```
 
-### Model Download Takes Time
+### Gemini API Request Fails
 
-**Problem:** The first application startup takes longer than expected.
+**Problem:** Summary generation fails when the backend communicates with Gemini.
 
-**Reason:** Hugging Face needs to download the configured model and its dependencies.
+**Check:**
 
-**Solution:** Allow the initial model download to complete. Subsequent startups can reuse the persistent model cache.
+- The Gemini API key is configured correctly in the backend environment.
+- The configured model is available to the API key.
+- The API key has not been revoked or restricted.
+- API quota and rate limits have not been exceeded.
+- The backend has network access to the Gemini API.
+
+Never expose the API key in frontend code, logs, screenshots, or public repositories.
 
 ### Input Validation Error
 
-**Problem:** The application rejects the submitted content.
+**Problem:** The application rejects submitted content.
 
 **Reason:** The content may contain fewer than 50 meaningful characters or exceed the configured input limits.
 
@@ -754,34 +830,50 @@ http://localhost:8000/health
 
 **Problem:** The frontend cannot communicate with FastAPI.
 
-**Solution:**
-- Verify that the backend is running.
+**Check:**
+
+- Verify that the backend service is running.
 - Check `VITE_API_BASE_URL`.
-- Confirm that the configured CORS origins permit the frontend origin.
-- Restart the relevant development processes after configuration changes.
+- Confirm that backend CORS configuration allows the frontend origin.
+- Rebuild the frontend after changing Vite environment variables.
+- Inspect the browser developer console and backend logs.
+
+### GitHub and LinkedIn Links Are Not Clickable in Production
+
+**Problem:** Social profile links work locally but not after deployment.
+
+**Reason:** The frontend profile URLs are Vite build-time environment variables.
+
+**Solution:**
+
+1. Open the Render Static Site service.
+2. Verify `VITE_GITHUB_URL` and `VITE_LINKEDIN_URL`.
+3. Save the environment variables.
+4. Trigger a new frontend deployment.
+5. Verify both links in the deployed application.
 
 ## 17. Future Enhancements
 
 Potential improvements include:
 
 - OCR support for scanned and image-based PDFs.
-- Additional transformer-based summarization models.
+- Additional Gemini model evaluation.
 - Summary length and output-style controls.
-- Improved evaluation using ROUGE and other summarization metrics.
-- Production-ready frontend and backend container orchestration.
-- Cloud deployment and monitoring.
+- Improved summarization evaluation using ROUGE and other metrics.
+- More comprehensive frontend and end-to-end testing.
+- Improved error handling for API quotas and rate limits.
 - Performance optimization for lengthy documents.
-- More comprehensive end-to-end testing.
+- Application monitoring and usage analytics.
 - Support for additional document formats.
 
 ## 18. Author
 
 **Dinesh Kumar Alagarsamy**
 
-*Software Quality Engineer / SDET*
+Software Quality Engineer / SDET
 
-- **GitHub:** [https://github.com/a-dinesh-kumar](https://github.com/a-dinesh-kumar)
-- **LinkedIn:** [https://www.linkedin.com/in/dinesh-kumar-alagarsamy](https://www.linkedin.com/in/dinesh-kumar-alagarsamy)
+- **GitHub:** https://github.com/a-dinesh-kumar
+- **LinkedIn:** https://www.linkedin.com/in/dinesh-kumar-alagarsamy
 
 ### Areas of Interest
 
@@ -796,4 +888,4 @@ Potential improvements include:
 
 ---
 
-*Built as part of my learning journey in NLP, transformer models, FastAPI, React, Docker, and AI application development.*
+*Built as part of my learning journey in NLP, generative AI, FastAPI, React, Docker, and AI application development.*

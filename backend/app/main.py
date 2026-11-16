@@ -14,13 +14,22 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     app.state.settings = settings
 
-    # Load the selected model once per application process.
     summarizer = create_summarizer(settings)
     summarizer.load()
-    app.state.summarizer = summarizer
-    app.state.summarization_service = SummarizationService(summarizer, settings)
 
-    yield
+    app.state.summarizer = summarizer
+    app.state.summarization_service = SummarizationService(
+        summarizer,
+        settings,
+    )
+
+    try:
+        yield
+    finally:
+        close = getattr(summarizer, "close", None)
+
+        if callable(close):
+            close()
 
 
 settings = get_settings()
@@ -28,7 +37,7 @@ settings = get_settings()
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="Model-switchable text and document summarization API.",
+    description="Gemini-powered text and document summarization API.",
     lifespan=lifespan,
 )
 
@@ -53,10 +62,15 @@ def root():
 @app.get("/health")
 def health():
     ready = hasattr(app.state, "summarization_service")
+
     return {
         "status": "ready" if ready else "starting",
         "model_loaded": ready,
     }
 
 
-app.include_router(summarize_router, prefix="/api/v1", tags=["Summarization"])
+app.include_router(
+    summarize_router,
+    prefix="/api/v1",
+    tags=["Summarization"],
+)

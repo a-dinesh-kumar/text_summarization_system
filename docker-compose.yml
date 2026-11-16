@@ -12,7 +12,6 @@ services:
       - ./backend/app:/app/app
       - ./backend/tests:/app/tests
       - ./backend/pytest.ini:/app/pytest.ini:ro
-      - huggingface_cache:/app/.cache/huggingface
     command:
       - uvicorn
       - app.main:app
@@ -21,6 +20,3 @@ services:
       - --port
       - "8000"
       - --reload
-
-volumes:
-  huggingface_cache:

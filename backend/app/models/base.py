@@ -1,23 +1,21 @@
 from abc import ABC, abstractmethod
-from typing import Any
 
 
 class BaseSummarizer(ABC):
-    """Common interface used by the API, regardless of the underlying model."""
+    """Common interface for summarization providers."""
 
     model_key: str
     display_name: str
-    max_input_tokens: int
-    chunk_size: int
+    chunk_size_chars: int
 
     @abstractmethod
     def load(self) -> None:
-        """Load tokenizer and model into memory."""
+        """Initialize the summarization provider."""
 
     @abstractmethod
     def count_tokens(self, text: str) -> int:
-        """Count tokens using this model's tokenizer."""
+        """Return the source token count."""
 
     @abstractmethod
     def generate(self, text: str, max_new_tokens: int) -> str:
-        """Generate one summary for a text chunk."""
+        """Generate a summary for the supplied text."""

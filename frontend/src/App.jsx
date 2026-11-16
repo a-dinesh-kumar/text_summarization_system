@@ -342,7 +342,7 @@ function App() {
           </div>
           <div className="steps">
             <Step number="01" title="Provide content" description="Paste text or upload a PDF, DOCX or TXT document." />
-            <Step number="02" title="AI processing" description="FastAPI prepares the content and runs the configured transformer model." />
+            <Step number="02" title="AI processing" description="FastAPI prepares the content and runs the configured Gemini model." />
             <Step number="03" title="Get your summary" description="Read, copy or download the generated summary." />
           </div>
         </section>
@@ -350,7 +350,7 @@ function App() {
 
       <footer className="footer">
         <span>Text Summarization System</span>
-        <span>Built with React, FastAPI & Transformer models</span>
+        <span>Built with React, FastAPI & Gemini AI</span>
       </footer>
     </div>
   );

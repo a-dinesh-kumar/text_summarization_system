@@ -3,19 +3,59 @@ from app.models.base import BaseSummarizer
 
 
 def split_sentences(text: str) -> list[str]:
-    """
-    Lightweight sentence splitter. It preserves sentence punctuation and avoids
-    requiring a downloaded NLTK model at container startup. It is a practical
-    baseline, not a linguistic parser; unusual abbreviations may split imperfectly.
-    """
+    """Split text into sentences while preserving punctuation."""
+
     normalized = re.sub(r"\s+", " ", text).strip()
+
     if not normalized:
         return []
 
-    # Split after sentence-ending punctuation when followed by whitespace and
-    # an uppercase/digit/opening quote. Also split at paragraph boundaries.
-    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])", normalized)
-    return [part.strip() for part in parts if part.strip()]
+    parts = re.split(
+        r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])",
+        normalized,
+    )
+
+    return [
+        part.strip()
+        for part in parts
+        if part.strip()
+    ]
+
+
+def split_long_sentence(
+    sentence: str,
+    max_chars: int,
+) -> list[str]:
+    """Split an unusually long sentence into character-limited pieces."""
+
+    words = sentence.split()
+
+    pieces: list[str] = []
+    current = ""
+
+    for word in words:
+        if len(word) > max_chars:
+            if current:
+                pieces.append(current)
+                current = ""
+
+            for start in range(0, len(word), max_chars):
+                pieces.append(word[start:start + max_chars])
+
+            continue
+
+        candidate = f"{current} {word}".strip()
+
+        if current and len(candidate) > max_chars:
+            pieces.append(current)
+            current = word
+        else:
+            current = candidate
+
+    if current:
+        pieces.append(current)
+
+    return pieces
 
 
 def create_sentence_chunks(
@@ -24,55 +64,55 @@ def create_sentence_chunks(
     overlap_sentences: int = 1,
 ) -> list[str]:
     sentences = split_sentences(text)
+
     if not sentences:
         return []
 
+    budget = summarizer.chunk_size_chars
+
     chunks: list[str] = []
     current: list[str] = []
-    current_tokens = 0
-    budget = summarizer.chunk_size
 
     for sentence in sentences:
-        sentence_tokens = summarizer.count_tokens(sentence)
-
-        # Split a single unusually long sentence into token windows.
-        if sentence_tokens > budget:
+        if len(sentence) > budget:
             if current:
                 chunks.append(" ".join(current))
                 current = []
-                current_tokens = 0
 
-            token_ids = summarizer.tokenizer.encode(
-                sentence, add_special_tokens=False
+            chunks.extend(
+                split_long_sentence(sentence, budget)
             )
-            start = 0
-            while start < len(token_ids):
-                window = token_ids[start : start + budget]
-                piece = summarizer.tokenizer.decode(
-                    window, skip_special_tokens=True
-                ).strip()
-                if piece:
-                    chunks.append(piece)
-                start += budget
             continue
 
-        if current and current_tokens + sentence_tokens > budget:
+        candidate = " ".join(current + [sentence])
+
+        if current and len(candidate) > budget:
             chunks.append(" ".join(current))
-            overlap = current[-overlap_sentences:] if overlap_sentences else []
-            overlap_tokens = sum(summarizer.count_tokens(item) for item in overlap)
-            # Keep overlap only when it still leaves room for the next sentence.
-            if overlap_tokens + sentence_tokens <= budget:
+
+            overlap = (
+                current[-overlap_sentences:]
+                if overlap_sentences > 0
+                else []
+            )
+
+            overlap_text = " ".join(overlap)
+            overlap_candidate = (
+                f"{overlap_text} {sentence}".strip()
+            )
+
+            if (
+                overlap
+                and len(overlap_candidate) <= budget
+            ):
                 current = list(overlap)
-                current_tokens = overlap_tokens
             else:
                 current = []
-                current_tokens = 0
 
         current.append(sentence)
-        current_tokens += sentence_tokens
 
     if current:
         final_chunk = " ".join(current)
+
         if not chunks or final_chunk != chunks[-1]:
             chunks.append(final_chunk)
 

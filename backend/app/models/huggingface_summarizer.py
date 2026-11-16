@@ -33,8 +33,27 @@ class HuggingFaceSummarizer(BaseSummarizer):
         self.device = torch.device("cpu")
 
     def load(self) -> None:
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_name)
+        # Limit CPU parallelism on memory-constrained deployments.
+        # These settings are process-wide, so configure them only during loading.
+        try:
+            torch.set_num_threads(1)
+        except RuntimeError:
+            pass
+
+        try:
+            torch.set_num_interop_threads(1)
+        except RuntimeError:
+            pass
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.model_name,
+        )
+
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(
+            self.model_name,
+            low_cpu_mem_usage=False,
+        )
+
         self.model.to(self.device)
         self.model.eval()
 
@@ -42,21 +61,35 @@ class HuggingFaceSummarizer(BaseSummarizer):
         return f"{self.prompt_prefix}{text}" if self.prompt_prefix else text
 
     def count_tokens(self, text: str) -> int:
+        if self.tokenizer is None:
+            raise RuntimeError("Summarization tokenizer has not been loaded.")
+
         prepared = self._prepare(text)
-        return len(self.tokenizer.encode(prepared, add_special_tokens=False))
+
+        return len(
+            self.tokenizer.encode(
+                prepared,
+                add_special_tokens=False,
+            )
+        )
 
     def generate(self, text: str, max_new_tokens: int) -> str:
         if self.model is None or self.tokenizer is None:
             raise RuntimeError("Summarization model has not been loaded.")
 
         prepared = self._prepare(text)
+
         inputs = self.tokenizer(
             prepared,
             return_tensors="pt",
             truncation=True,
             max_length=self.max_input_tokens,
         )
-        inputs = {key: value.to(self.device) for key, value in inputs.items()}
+
+        inputs = {
+            key: value.to(self.device)
+            for key, value in inputs.items()
+        }
 
         with torch.inference_mode():
             output_ids = self.model.generate(
@@ -68,4 +101,7 @@ class HuggingFaceSummarizer(BaseSummarizer):
                 early_stopping=True,
             )
 
-        return self.tokenizer.decode(output_ids[0], skip_special_tokens=True).strip()
+        return self.tokenizer.decode(
+            output_ids[0],
+            skip_special_tokens=True,
+        ).strip()

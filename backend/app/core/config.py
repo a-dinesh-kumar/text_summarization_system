@@ -8,18 +8,22 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     environment: str = "local"
 
-    # Supported values: bart, flan_t5
-    summarization_model: str = "bart"
+    # Gemini Developer API configuration
+    summarization_model: str = "gemini"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_chunk_size_chars: int = 12_000
+    gemini_temperature: float = 0.2
 
-    hf_home: str = "/app/.cache/huggingface"
+    # Document processing
     max_upload_size_mb: int = 15
     max_document_characters: int = 500_000
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origins: str = (
+        "http://localhost:5173,http://127.0.0.1:5173"
+    )
 
+    # Generation
     max_new_tokens: int = 140
-    num_beams: int = 4
-    no_repeat_ngram_size: int = 3
-    length_penalty: float = 1.0
     max_reduction_levels: int = 8
 
     model_config = SettingsConfigDict(

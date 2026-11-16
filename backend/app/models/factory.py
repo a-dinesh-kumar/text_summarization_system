@@ -1,39 +1,33 @@
 from app.core.config import Settings
 from app.models.base import BaseSummarizer
-from app.models.huggingface_summarizer import HuggingFaceSummarizer
-
-
-MODEL_CONFIGS = {
-    "bart": {
-        "model_name": "facebook/bart-large-cnn",
-        "display_name": "BART-large-CNN",
-        "max_input_tokens": 1024,
-        "chunk_size": 900,
-        "prompt_prefix": "",
-    },
-    "flan_t5": {
-        "model_name": "google/flan-t5-small",
-        "display_name": "FLAN-T5-small",
-        "max_input_tokens": 512,
-        "chunk_size": 440,
-        "prompt_prefix": "summarize: ",
-    },
-}
+from app.models.gemini_summarizer import GeminiSummarizer
 
 
 def create_summarizer(settings: Settings) -> BaseSummarizer:
     key = settings.summarization_model.strip().lower()
-    if key not in MODEL_CONFIGS:
-        supported = ", ".join(MODEL_CONFIGS)
+
+    if key != "gemini":
         raise ValueError(
-            f"Unsupported SUMMARIZATION_MODEL='{key}'. Choose one of: {supported}."
+            f"Unsupported SUMMARIZATION_MODEL='{key}'. "
+            "Choose: gemini."
         )
 
-    config = MODEL_CONFIGS[key]
-    return HuggingFaceSummarizer(
-        model_key=key,
-        **config,
-        num_beams=settings.num_beams,
-        no_repeat_ngram_size=settings.no_repeat_ngram_size,
-        length_penalty=settings.length_penalty,
+    if not settings.gemini_api_key.strip():
+        raise ValueError(
+            "GEMINI_API_KEY must be configured before starting "
+            "the Gemini summarization service."
+        )
+
+    if settings.gemini_chunk_size_chars < 100:
+        raise ValueError(
+            "GEMINI_CHUNK_SIZE_CHARS must be at least 100."
+        )
+
+    return GeminiSummarizer(
+        model_key="gemini",
+        model_name=settings.gemini_model,
+        display_name=settings.gemini_model,
+        api_key=settings.gemini_api_key,
+        chunk_size_chars=settings.gemini_chunk_size_chars,
+        temperature=settings.gemini_temperature,
     )
